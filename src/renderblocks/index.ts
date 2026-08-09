@@ -4,5 +4,6 @@ export * from './CanvasRenderBlockRenderer';
 export * from './RenderBlockEngine';
 export * from './RenderBlockState';
 export * from './BattleRenderBlockAdapter';
+export * from './NorthwellBattleController';
 export * from './NorthwellBattleBenchmark';
 export * from './prototypeManifest';
