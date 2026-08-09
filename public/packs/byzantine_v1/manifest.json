@@ -1,0 +1,71 @@
+{
+  "id": "byzantine_v1",
+  "name": "Byzantine Bastion",
+  "version": 1,
+  "origin": "synthetic",
+  "baseUrl": "/packs/byzantine_v1",
+  "tilePx": 256,
+  "surfaces": {
+    "wall.outer": {
+      "intact": {
+        "albedo": "wall.outer_intact.png"
+      },
+      "light": {
+        "albedo": "wall.outer_light.png"
+      },
+      "cracked": {
+        "albedo": "wall.outer_cracked.png"
+      },
+      "heavy": {
+        "albedo": "wall.outer_heavy.png"
+      },
+      "breached": {
+        "albedo": "wall.outer_breached.png"
+      },
+      "collapsed": {
+        "albedo": "wall.outer_collapsed.png"
+      }
+    },
+    "wall.inner": {
+      "intact": {
+        "albedo": "wall.inner_intact.png"
+      },
+      "light": {
+        "albedo": "wall.inner_light.png"
+      },
+      "cracked": {
+        "albedo": "wall.inner_cracked.png"
+      },
+      "heavy": {
+        "albedo": "wall.inner_heavy.png"
+      },
+      "breached": {
+        "albedo": "wall.inner_breached.png"
+      },
+      "collapsed": {
+        "albedo": "wall.inner_collapsed.png"
+      }
+    },
+    "keep.keep": {
+      "intact": {
+        "albedo": "keep.keep_intact.png"
+      },
+      "light": {
+        "albedo": "keep.keep_light.png"
+      },
+      "cracked": {
+        "albedo": "keep.keep_cracked.png"
+      },
+      "heavy": {
+        "albedo": "keep.keep_heavy.png"
+      },
+      "breached": {
+        "albedo": "keep.keep_breached.png"
+      },
+      "collapsed": {
+        "albedo": "keep.keep_collapsed.png"
+      }
+    }
+  },
+  "integrityHash": "4e636d82f531827ce5838d8b3214be24f5e33d3467bf78be7238402787f4f2b8"
+}

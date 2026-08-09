@@ -44,9 +44,9 @@ function render(stage: DamageStage, mode: Mode): Promise<Buffer> {
 
   // BROKEN_MONOTON: make 'crumbling' read crisper than 'cracked'.
   let gridAmp = 1 - d;                              // mortar crispness fades w/ damage
-  if (mode === 'BROKEN_MONOTON' && stage === 'crumbling') { gridAmp = 1.0; d = 0.1; }
+  if (mode === 'BROKEN_MONOTON' && stage === 'breached') { gridAmp = 1.0; d = 0.1; }
 
-  const hueSwap = mode === 'BROKEN_PALETTE' && stage === 'damaged';
+  const hueSwap = mode === 'BROKEN_PALETTE' && stage === 'heavy';
   const gradient = mode === 'BROKEN_SEAM' && stage === 'cracked';
   const [pr, pg, pb] = palette(d, hueSwap);
   const noiseAmp = d;                              // irregular rubble grows w/ damage
@@ -70,13 +70,13 @@ function render(stage: DamageStage, mode: Mode): Promise<Buffer> {
 }
 
 function providerFor(mode: Mode): ImageProvider {
-  const marker: Record<string, DamageStage> = {
-    pristine: 'intact', hairline: 'cracked', fracture: 'damaged',
-    'large sections': 'crumbling', 'rubble and dust': 'rubble',
-  };
+  const marker: Array<[string, DamageStage]> = [
+    ['pristine', 'intact'], ['light weathering', 'light'], ['visible cracks', 'cracked'],
+    ['large fractures', 'heavy'], ['sections collapsed', 'breached'], ['broken rubble', 'collapsed'],
+  ];
   return {
     async generate(prompt: string): Promise<Buffer> {
-      const stage = Object.entries(marker).find(([frag]) => prompt.includes(frag))?.[1] ?? 'intact';
+      const stage = marker.find(([frag]) => prompt.includes(frag))?.[1] ?? 'intact';
       // second-attempt retry text present? still same stage — honest mock.
       return render(stage, mode);
     },

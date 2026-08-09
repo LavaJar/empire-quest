@@ -54,10 +54,11 @@ export interface StyleBrief {
 
 const DAMAGE_LANGUAGE: Record<DamageStage, string> = {
   intact:    'pristine, fully intact, sharp mortar lines, no damage',
-  cracked:   'hairline cracks, minor chipping, still structurally whole',
-  damaged:   'visible fracture lines, missing chunks, exposed inner core',
-  crumbling: 'large sections collapsed, rebar/timber core exposed, scorch',
-  rubble:    'reduced to broken rubble and dust, barely recognizable',
+  light:     'light weathering, a few surface chips, structurally whole',
+  cracked:   'visible cracks and spalling, mortar loss, still standing',
+  heavy:     'large fractures, missing chunks, exposed inner core',
+  breached:  'sections collapsed, gap punched through, rebar/timber exposed, scorch',
+  collapsed: 'reduced to broken rubble and dust, barely recognizable',
 };
 
 function buildPrompt(brief: StyleBrief, archetype: BlockArchetype, tier: WallTier, stage: DamageStage): string {
