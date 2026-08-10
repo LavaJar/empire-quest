@@ -1,0 +1,148 @@
+{
+  "id": "byzantine_v1",
+  "name": "Byzantine Bastion",
+  "version": 1,
+  "origin": "synthetic",
+  "baseUrl": "/packs/byzantine_v1",
+  "tilePx": 256,
+  "surfaces": {
+    "wall.outer": {
+      "intact": {
+        "albedo": "wall.outer_intact.png",
+        "normal": "wall.outer_intact_n.png",
+        "height": "wall.outer_intact_h.png",
+        "ao": "wall.outer_intact_ao.png",
+        "roughness": "wall.outer_intact_r.png"
+      },
+      "light": {
+        "albedo": "wall.outer_light.png",
+        "normal": "wall.outer_light_n.png",
+        "height": "wall.outer_light_h.png",
+        "ao": "wall.outer_light_ao.png",
+        "roughness": "wall.outer_light_r.png"
+      },
+      "cracked": {
+        "albedo": "wall.outer_cracked.png",
+        "normal": "wall.outer_cracked_n.png",
+        "height": "wall.outer_cracked_h.png",
+        "ao": "wall.outer_cracked_ao.png",
+        "roughness": "wall.outer_cracked_r.png"
+      },
+      "heavy": {
+        "albedo": "wall.outer_heavy.png",
+        "normal": "wall.outer_heavy_n.png",
+        "height": "wall.outer_heavy_h.png",
+        "ao": "wall.outer_heavy_ao.png",
+        "roughness": "wall.outer_heavy_r.png"
+      },
+      "breached": {
+        "albedo": "wall.outer_breached.png",
+        "normal": "wall.outer_breached_n.png",
+        "height": "wall.outer_breached_h.png",
+        "ao": "wall.outer_breached_ao.png",
+        "roughness": "wall.outer_breached_r.png"
+      },
+      "collapsed": {
+        "albedo": "wall.outer_collapsed.png",
+        "normal": "wall.outer_collapsed_n.png",
+        "height": "wall.outer_collapsed_h.png",
+        "ao": "wall.outer_collapsed_ao.png",
+        "roughness": "wall.outer_collapsed_r.png"
+      }
+    },
+    "wall.inner": {
+      "intact": {
+        "albedo": "wall.inner_intact.png",
+        "normal": "wall.inner_intact_n.png",
+        "height": "wall.inner_intact_h.png",
+        "ao": "wall.inner_intact_ao.png",
+        "roughness": "wall.inner_intact_r.png"
+      },
+      "light": {
+        "albedo": "wall.inner_light.png",
+        "normal": "wall.inner_light_n.png",
+        "height": "wall.inner_light_h.png",
+        "ao": "wall.inner_light_ao.png",
+        "roughness": "wall.inner_light_r.png"
+      },
+      "cracked": {
+        "albedo": "wall.inner_cracked.png",
+        "normal": "wall.inner_cracked_n.png",
+        "height": "wall.inner_cracked_h.png",
+        "ao": "wall.inner_cracked_ao.png",
+        "roughness": "wall.inner_cracked_r.png"
+      },
+      "heavy": {
+        "albedo": "wall.inner_heavy.png",
+        "normal": "wall.inner_heavy_n.png",
+        "height": "wall.inner_heavy_h.png",
+        "ao": "wall.inner_heavy_ao.png",
+        "roughness": "wall.inner_heavy_r.png"
+      },
+      "breached": {
+        "albedo": "wall.inner_breached.png",
+        "normal": "wall.inner_breached_n.png",
+        "height": "wall.inner_breached_h.png",
+        "ao": "wall.inner_breached_ao.png",
+        "roughness": "wall.inner_breached_r.png"
+      },
+      "collapsed": {
+        "albedo": "wall.inner_collapsed.png",
+        "normal": "wall.inner_collapsed_n.png",
+        "height": "wall.inner_collapsed_h.png",
+        "ao": "wall.inner_collapsed_ao.png",
+        "roughness": "wall.inner_collapsed_r.png"
+      }
+    },
+    "keep.keep": {
+      "intact": {
+        "albedo": "keep.keep_intact.png",
+        "normal": "keep.keep_intact_n.png",
+        "height": "keep.keep_intact_h.png",
+        "ao": "keep.keep_intact_ao.png",
+        "roughness": "keep.keep_intact_r.png"
+      },
+      "light": {
+        "albedo": "keep.keep_light.png",
+        "normal": "keep.keep_light_n.png",
+        "height": "keep.keep_light_h.png",
+        "ao": "keep.keep_light_ao.png",
+        "roughness": "keep.keep_light_r.png"
+      },
+      "cracked": {
+        "albedo": "keep.keep_cracked.png",
+        "normal": "keep.keep_cracked_n.png",
+        "height": "keep.keep_cracked_h.png",
+        "ao": "keep.keep_cracked_ao.png",
+        "roughness": "keep.keep_cracked_r.png"
+      },
+      "heavy": {
+        "albedo": "keep.keep_heavy.png",
+        "normal": "keep.keep_heavy_n.png",
+        "height": "keep.keep_heavy_h.png",
+        "ao": "keep.keep_heavy_ao.png",
+        "roughness": "keep.keep_heavy_r.png"
+      },
+      "breached": {
+        "albedo": "keep.keep_breached.png",
+        "normal": "keep.keep_breached_n.png",
+        "height": "keep.keep_breached_h.png",
+        "ao": "keep.keep_breached_ao.png",
+        "roughness": "keep.keep_breached_r.png"
+      },
+      "collapsed": {
+        "albedo": "keep.keep_collapsed.png",
+        "normal": "keep.keep_collapsed_n.png",
+        "height": "keep.keep_collapsed_h.png",
+        "ao": "keep.keep_collapsed_ao.png",
+        "roughness": "keep.keep_collapsed_r.png"
+      }
+    }
+  },
+  "fractures": {
+    "wall.outer": "wall.outer.fracture.json",
+    "wall.inner": "wall.inner.fracture.json",
+    "keep.keep": "keep.keep.fracture.json"
+  },
+  "integrityHash": "f77406403c9c893fbe0b4cbccb411d9e5064c98464a4a0a55c107cc9a21db1d1"
+}
