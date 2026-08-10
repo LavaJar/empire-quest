@@ -18,6 +18,8 @@
  */
 
 import { createHash } from 'node:crypto';
+import { derivePBR } from './PBRForge';
+import { extractFractureGraph } from './FractureForge';
 import { writeFile, mkdir } from 'node:fs/promises';
 import * as path from 'node:path';
 import sharp from 'sharp';
@@ -95,16 +97,33 @@ const px = (img: Rgba, x: number, y: number): [number, number, number] => {
  * 0..1. Low = seamless.
  */
 export function seamError(img: Rgba): number {
-  let acc = 0, n = 0;
-  for (let y = 0; y < img.h; y++) {
-    const a = px(img, 0, y), b = px(img, img.w - 1, y);
-    for (let c = 0; c < 3; c++) { acc += Math.abs(a[c] - b[c]); n++; }
+  // Content-aware tileability: the wrap transition must not be an OUTLIER versus
+  // the texture's own internal adjacent-pixel transitions. A gradient makes the
+  // wrap a huge outlier; real masonry (whose internal brick edges are also
+  // high-contrast) wraps in-distribution and passes. Returns wrap/internal ratio.
+  const { w, h } = img; const eps = 1e-3;
+  let wrapH = 0, intH = 0, nH = 0, wrapV = 0, intV = 0, nV = 0;
+  for (let y = 0; y < h; y++) {
+    const a = px(img, 0, y), b = px(img, w - 1, y);
+    for (let c = 0; c < 3; c++) wrapH += Math.abs(a[c] - b[c]);
+    for (let x = 0; x < w - 1; x++) {
+      const p0 = px(img, x, y), p1 = px(img, x + 1, y);
+      for (let c = 0; c < 3; c++) intH += Math.abs(p0[c] - p1[c]);
+      nH++;
+    }
   }
-  for (let x = 0; x < img.w; x++) {
-    const a = px(img, x, 0), b = px(img, x, img.h - 1);
-    for (let c = 0; c < 3; c++) { acc += Math.abs(a[c] - b[c]); n++; }
+  for (let x = 0; x < w; x++) {
+    const a = px(img, x, 0), b = px(img, x, h - 1);
+    for (let c = 0; c < 3; c++) wrapV += Math.abs(a[c] - b[c]);
+    for (let y = 0; y < h - 1; y++) {
+      const p0 = px(img, x, y), p1 = px(img, x, y + 1);
+      for (let c = 0; c < 3; c++) intV += Math.abs(p0[c] - p1[c]);
+      nV++;
+    }
   }
-  return acc / n / 255;
+  const wMeanH = wrapH / (h * 3), iMeanH = intH / (nH * 3);
+  const wMeanV = wrapV / (w * 3), iMeanV = intV / (nV * 3);
+  return Math.max(wMeanH / (iMeanH + eps), wMeanV / (iMeanV + eps));
 }
 
 /* --- Check 2: STYLE-LOCK ------------------------------------------
@@ -180,7 +199,7 @@ export interface GateThresholds {
 }
 
 export const DEFAULT_THRESHOLDS: GateThresholds = {
-  maxSeamError: 0.06,
+  maxSeamError: 2.5,  // wrap may be up to 2.5x a typical internal transition
   minStyleCosine: 0.90,
   monotonicTolerance: 0.08,
 };
@@ -258,18 +277,39 @@ export async function generateStylePack(
   // 4. Passed — write images and assemble the manifest.
   await mkdir(outDir, { recursive: true });
   const surfaces: SurfaceTextures = {};
+  const fractures: Record<string, string> = {};
   const hash = createHash('sha256');
   for (const c of cands) {
-    const rel = `${c.key.replace('|', '_')}.png`;
+    const stem = c.key.replace('|', '_');
+    const rel = `${stem}.png`;
     await writeFile(path.join(outDir, rel), c.buf);
     hash.update(c.buf);
+    // full PBR derived from albedo (tileable), written alongside
+    const pbr = await derivePBR(c.buf);
+    await writeFile(path.join(outDir, `${stem}_n.png`), pbr.normal);
+    await writeFile(path.join(outDir, `${stem}_h.png`), pbr.height);
+    await writeFile(path.join(outDir, `${stem}_ao.png`), pbr.ao);
+    await writeFile(path.join(outDir, `${stem}_r.png`), pbr.roughness);
     const skey = surfaceKey(c.archetype, c.tier);
-    (surfaces[skey] ??= {})[c.stage] = { albedo: rel } satisfies TextureSet;
+    (surfaces[skey] ??= {})[c.stage] = {
+      albedo: rel, normal: `${stem}_n.png`, height: `${stem}_h.png`,
+      ao: `${stem}_ao.png`, roughness: `${stem}_r.png`,
+    } satisfies TextureSet;
+  }
+  // art-conditioned fracture graph per surface, from its intact albedo
+  for (const s of brief.surfaces) {
+    const skey = surfaceKey(s.archetype, s.tier);
+    const intact = cands.find(c => c.archetype === s.archetype && c.tier === s.tier && c.stage === 'intact');
+    if (!intact) continue;
+    const graph = await extractFractureGraph(intact.buf);
+    const frel = `${skey}.fracture.json`;
+    await writeFile(path.join(outDir, frel), JSON.stringify(graph));
+    fractures[skey] = frel;
   }
 
   const manifest: StylePackManifest = {
     id: brief.id, name: brief.name, version: 1, origin: 'synthetic',
-    baseUrl: `/packs/${brief.id}`, tilePx: brief.tilePx, surfaces,
+    baseUrl: `/packs/${brief.id}`, tilePx: brief.tilePx, surfaces, fractures,
     integrityHash: hash.digest('hex'),
   };
   await writeFile(path.join(outDir, 'manifest.json'), JSON.stringify(manifest, null, 2));

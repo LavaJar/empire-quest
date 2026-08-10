@@ -52,7 +52,7 @@ export interface SegmentLike {
 
 /* ------------------------- style-pack manifest ------------------------- */
 
-export interface TextureSet { albedo: string; normal?: string; roughness?: string; emissive?: string; }
+export interface TextureSet { albedo: string; normal?: string; roughness?: string; emissive?: string; height?: string; ao?: string; }
 export type StageTextures = Partial<Record<DamageStage, TextureSet>>;
 export type SurfaceTextures = Record<string, StageTextures>;
 
@@ -61,6 +61,8 @@ export interface StylePackManifest {
   origin: 'synthetic' | 'human' | 'hybrid';
   baseUrl: string; tilePx: number;
   surfaces: SurfaceTextures;
+  /** surfaceKey -> art-conditioned fracture graph JSON path. */
+  fractures?: Record<string, string>;
   integrityHash?: string;
 }
 
