@@ -1,0 +1,272 @@
+{
+  "id": "castle.northwell.west-wall.v1",
+  "family": "northwell-stone",
+  "type": "wall",
+  "version": 1,
+  "spatial": {
+    "width": 96,
+    "height": 76,
+    "pivot": {
+      "x": 0.5,
+      "y": 0.86
+    },
+    "anchors": [
+      {
+        "id": "left-joint",
+        "position": {
+          "x": -48,
+          "y": 0,
+          "z": 0
+        },
+        "kind": "attachment"
+      },
+      {
+        "id": "right-joint",
+        "position": {
+          "x": 48,
+          "y": 0,
+          "z": 0
+        },
+        "kind": "attachment"
+      },
+      {
+        "id": "ground",
+        "position": {
+          "x": 0,
+          "y": 0,
+          "z": 0
+        },
+        "kind": "ground"
+      },
+      {
+        "id": "impact-center",
+        "position": {
+          "x": 0,
+          "y": 20,
+          "z": 0
+        },
+        "kind": "projectile-target"
+      }
+    ],
+    "collisionProxy": {
+      "kind": "polygon",
+      "points": [
+        {
+          "x": 0.04,
+          "y": 0.18
+        },
+        {
+          "x": 0.96,
+          "y": 0.18
+        },
+        {
+          "x": 0.96,
+          "y": 0.9
+        },
+        {
+          "x": 0.04,
+          "y": 0.9
+        }
+      ]
+    },
+    "navProxy": {
+      "kind": "rect",
+      "width": 88,
+      "height": 20
+    }
+  },
+  "structural": {
+    "nodeId": "northwell:west_wall_04",
+    "semanticRegions": [
+      {
+        "id": "west-wall-main",
+        "targetId": "northwell:west_wall_04",
+        "material": "limestone",
+        "polygon": [
+          {
+            "x": 0.05,
+            "y": 0.28
+          },
+          {
+            "x": 0.95,
+            "y": 0.28
+          },
+          {
+            "x": 0.95,
+            "y": 0.9
+          },
+          {
+            "x": 0.05,
+            "y": 0.9
+          }
+        ]
+      },
+      {
+        "id": "west-wall-battlement",
+        "targetId": "northwell:west_wall_04:battlement",
+        "material": "limestone",
+        "polygon": [
+          {
+            "x": 0.04,
+            "y": 0.12
+          },
+          {
+            "x": 0.96,
+            "y": 0.12
+          },
+          {
+            "x": 0.96,
+            "y": 0.34
+          },
+          {
+            "x": 0.04,
+            "y": 0.34
+          }
+        ]
+      }
+    ],
+    "collapseRules": [
+      {
+        "id": "west-wall-critical",
+        "whenIntegrityBelow": 0.4,
+        "producesState": "critical"
+      },
+      {
+        "id": "west-wall-breach",
+        "whenIntegrityBelow": 0.2,
+        "producesState": "breached",
+        "changesPassability": true
+      }
+    ]
+  },
+  "simulation": {
+    "passability": "blocked",
+    "cover": 1,
+    "tags": [
+      "castle",
+      "fortification",
+      "northwell"
+    ]
+  },
+  "states": [
+    {
+      "key": "intact",
+      "passes": {
+        "beauty": {
+          "src": "/renderblocks/prototype/northwell/west_wall_intact.webp"
+        },
+        "alpha": {
+          "src": "/renderblocks/prototype/northwell/west_wall_intact_alpha.webp"
+        },
+        "normal": {
+          "src": "/renderblocks/prototype/northwell/west_wall_intact_n.webp"
+        },
+        "depth": {
+          "src": "/renderblocks/prototype/northwell/west_wall_intact_h.webp"
+        },
+        "occlusion": {
+          "src": "/renderblocks/prototype/northwell/west_wall_intact_ao.webp"
+        },
+        "semanticId": {
+          "src": "/renderblocks/prototype/northwell/west_wall_semantic.webp"
+        },
+        "damageMask": {
+          "src": "/renderblocks/prototype/northwell/west_wall_damage_mask.webp"
+        }
+      }
+    },
+    {
+      "key": "scarred",
+      "passes": {
+        "beauty": {
+          "src": "/renderblocks/prototype/northwell/west_wall_scarred.webp"
+        },
+        "alpha": {
+          "src": "/renderblocks/prototype/northwell/west_wall_scarred_alpha.webp"
+        },
+        "normal": {
+          "src": "/renderblocks/prototype/northwell/west_wall_scarred_n.webp"
+        },
+        "depth": {
+          "src": "/renderblocks/prototype/northwell/west_wall_scarred_h.webp"
+        },
+        "occlusion": {
+          "src": "/renderblocks/prototype/northwell/west_wall_scarred_ao.webp"
+        }
+      }
+    },
+    {
+      "key": "damaged",
+      "passes": {
+        "beauty": {
+          "src": "/renderblocks/prototype/northwell/west_wall_damaged.webp"
+        },
+        "alpha": {
+          "src": "/renderblocks/prototype/northwell/west_wall_damaged_alpha.webp"
+        },
+        "normal": {
+          "src": "/renderblocks/prototype/northwell/west_wall_damaged_n.webp"
+        },
+        "depth": {
+          "src": "/renderblocks/prototype/northwell/west_wall_damaged_h.webp"
+        },
+        "occlusion": {
+          "src": "/renderblocks/prototype/northwell/west_wall_damaged_ao.webp"
+        }
+      }
+    },
+    {
+      "key": "critical",
+      "passes": {
+        "beauty": {
+          "src": "/renderblocks/prototype/northwell/west_wall_critical.webp"
+        },
+        "alpha": {
+          "src": "/renderblocks/prototype/northwell/west_wall_critical_alpha.webp"
+        },
+        "normal": {
+          "src": "/renderblocks/prototype/northwell/west_wall_critical_n.webp"
+        },
+        "depth": {
+          "src": "/renderblocks/prototype/northwell/west_wall_critical_h.webp"
+        },
+        "occlusion": {
+          "src": "/renderblocks/prototype/northwell/west_wall_critical_ao.webp"
+        }
+      }
+    },
+    {
+      "key": "breached",
+      "passes": {
+        "beauty": {
+          "src": "/renderblocks/prototype/northwell/west_wall_breached.webp"
+        },
+        "alpha": {
+          "src": "/renderblocks/prototype/northwell/west_wall_breached_alpha.webp"
+        },
+        "normal": {
+          "src": "/renderblocks/prototype/northwell/west_wall_breached_n.webp"
+        },
+        "depth": {
+          "src": "/renderblocks/prototype/northwell/west_wall_breached_h.webp"
+        },
+        "occlusion": {
+          "src": "/renderblocks/prototype/northwell/west_wall_breached_ao.webp"
+        }
+      }
+    }
+  ],
+  "stateMap": {
+    "intact": "intact",
+    "light": "scarred",
+    "cracked": "damaged",
+    "heavy": "critical",
+    "breached": "breached",
+    "collapsed": "breached"
+  },
+  "metadata": {
+    "authoringCamera": "three-quarter orthographic, fixed Northwell benchmark camera",
+    "lightDirection": "northwest / upper-left",
+    "beauty": "STAND-IN procedural masonry; replace with cinematic beauty per BEAUTY_GENERATION_CONTRACT.md"
+  }
+}
