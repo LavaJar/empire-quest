@@ -57,3 +57,18 @@ Producer pipeline: proven (renderProof/proveGate/collapseProof, 0.756 joint alig
 Consumer composite renderer: built, typechecked, schema-conformant. Beauty passes:
 blocked on image-model access (see contract). Hand me the source tree or the beauty,
 and this is reference-quality and destructible.
+
+## UPDATE — generation ownership (Jeremy's call)
+GPT owns image generation, including ALL companion passes (beauty/alpha/normal/
+depth/AO/semanticId/damageMask), generated to BEAUTY_GENERATION_CONTRACT.md +
+ASSET_CONTRACT.md the way we want them rendered. ArtForge (tools/artforge/*:
+ProceduralProvider, PBRForge, FractureForge, QA gate, exportRenderBlock, style
+packs) is RETIRED — it was a stand-in for a generator we now have in GPT.
+Engine keeps only the two non-generation pieces:
+  1. deterministic collapse (computeCollapse, NextGenSiege) — which fragments fall,
+     PvP-synced. Simulation, not an image.
+  2. the runtime consumer that displays GPT's passes + swaps damage states
+     (CompositeRenderBlockRenderer) — display, not generation.
+GPT: emit the full pass set per the contract; the engine consumes them. If any pass
+is easier to derive than author (e.g. normal from beauty), say so and it can live in
+the loader — otherwise assume authored.
