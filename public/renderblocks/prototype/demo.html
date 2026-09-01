@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Empire Quest — RenderBlock Prototype</title>
+<style>
+  :root{color-scheme:dark;--bg:#0a0d0c;--panel:#121816;--line:#34443d;--gold:#d4b14d;--text:#e8e2cf;--muted:#98a79f;--good:#7fcf8f;--warn:#e2b85b;--bad:#df7168}
+  *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 50% -20%,#23352d 0,#0a0d0c 38%,#070908 100%);color:var(--text);font:14px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh}
+  header{padding:18px 22px;border-bottom:1px solid #27342f;background:#0a0d0de6;backdrop-filter:blur(12px);position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;gap:18px;align-items:center}
+  h1{font:600 18px/1.1 Georgia,serif;letter-spacing:.04em;margin:0;color:#f4e7b4} .badge{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#c8d7cf;border:1px solid #3a5147;border-radius:999px;padding:5px 9px;background:#14201b}
+  main{max-width:1320px;margin:0 auto;padding:20px;display:grid;grid-template-columns:1fr 1fr;gap:18px}.card{background:linear-gradient(180deg,#131a17,#0f1412);border:1px solid #2d3b35;border-radius:14px;overflow:hidden;box-shadow:0 18px 60px #0008}.cardHead{padding:14px 16px;border-bottom:1px solid #27342f;display:flex;align-items:center;justify-content:space-between;gap:12px}.cardHead h2{font-size:14px;margin:0;color:#f3e6ba}.meta{font-size:11px;color:var(--muted)}
+  .viewport{height:430px;position:relative;overflow:hidden;background:linear-gradient(#657b66 0 46%,#4b633b 47% 100%)} .viewport.wall{background:linear-gradient(#84929b 0 46%,#5d704a 47% 100%)}
+  .viewport:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 42%,transparent 0 35%,#0007 100%);pointer-events:none}.scene{position:absolute;inset:0;display:grid;place-items:center;transform:translateY(12px)}.scene svg{width:88%;height:88%;filter:drop-shadow(0 22px 18px #0007)}
+  .controls{padding:14px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-top:1px solid #27342f;background:#0d1210}.controls button{border:1px solid #43564d;background:#19231f;color:#dae5df;padding:7px 10px;border-radius:7px;cursor:pointer}.controls button:hover,.controls button.active{border-color:var(--gold);background:#332b16;color:#fff0b5}.controls input[type=range]{flex:1;min-width:160px}.value{min-width:112px;color:#f6df8d;font-variant-numeric:tabular-nums}
+  .readout{margin:0 16px 16px;padding:12px 13px;border:1px solid #293831;border-radius:9px;background:#090d0b;color:#9fb0a8;font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:pre-wrap;min-height:94px}.dot{width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--good);box-shadow:0 0 10px currentColor;margin-right:6px}.legend{grid-column:1/-1;background:#101613;border:1px solid #2d3b35;border-radius:12px;padding:14px 16px;color:#aebbb5}.legend strong{color:#f0dfad}.semantic{position:absolute;top:12px;right:12px;background:#07100ddd;border:1px solid #315247;padding:7px 9px;border-radius:7px;font:11px ui-monospace,monospace;color:#a9e3c0;display:none}.semantic.show{display:block}
+  @media(max-width:900px){main{grid-template-columns:1fr}.viewport{height:360px}.legend{grid-column:auto}}
+</style>
+</head>
+<body>
+<header><div><h1>Empire Quest — Semantic RenderBlock Prototype</h1><div class="meta">Image-first simulation blocks • visual state ↔ semantic state</div></div><span class="badge">engineering harness</span></header>
+<main>
+<section class="card">
+  <div class="cardHead"><div><h2>Sunwell Farm</h2><div class="meta">feature: sunwell-farm → farm.sunwell.v1</div></div><span><span class="dot"></span>bound</span></div>
+  <div class="viewport"><div id="farmScene" class="scene"></div><div id="farmSemantic" class="semantic"></div></div>
+  <div class="controls" id="farmButtons"></div>
+  <pre class="readout" id="farmReadout"></pre>
+</section>
+<section class="card">
+  <div class="cardHead"><div><h2>Northwell West Wall 04</h2><div class="meta">node: northwell:west_wall_04</div></div><span><span class="dot"></span>semantic</span></div>
+  <div class="viewport wall"><div id="wallScene" class="scene"></div><div id="wallSemantic" class="semantic">click wall region</div></div>
+  <div class="controls"><span>Integrity</span><input id="integrity" type="range" min="0" max="100" value="100"/><span id="integrityValue" class="value">100% intact</span></div>
+  <pre class="readout" id="wallReadout"></pre>
+</section>
+<div class="legend"><strong>This is plumbing/debug art, not the final graphics benchmark.</strong> The point is that the same world object changes visual representation from simulation state while retaining stable identity, pivot, semantic regions, and passability rules. Final AI-rendered blocks can replace these SVG visuals without changing the state logic.</div>
+</main>
+<script>
+const farmStates=['healthy','dry','harvested','snow','flooded'];
+let farmState='healthy';
+const farmColors={healthy:['#476f2f','#90b950','#b79548'],dry:['#745d2d','#a98a42','#765b36'],harvested:['#8a743b','#c3a35b','#745132'],snow:['#cfd8d6','#f2f4ef','#7f8c7d'],flooded:['#496f61','#6d8b74','#5a4b36']};
+function farmSvg(state){const [field,crop,wood]=farmColors[state];const snow=state==='snow';const flooded=state==='flooded';const harvested=state==='harvested';return `<svg viewBox="0 0 720 520" aria-label="Sunwell farm ${state}"><defs><linearGradient id="soil" x1="0" y1="0" x2="1" y2="1"><stop stop-color="${field}"/><stop offset="1" stop-color="#263b25"/></linearGradient><linearGradient id="roof"><stop stop-color="${wood}"/><stop offset="1" stop-color="#49331f"/></linearGradient></defs><ellipse cx="360" cy="420" rx="305" ry="62" fill="#000" opacity=".25"/><path d="M70 190 570 115 655 354 145 432Z" fill="url(#soil)" stroke="#cdbf86" stroke-opacity=".28" stroke-width="5"/>${[0,1,2,3,4,5,6].map(i=>`<path d="M${112+i*60} ${202-i*8} ${190+i*57} ${397-i*5}" stroke="${crop}" stroke-width="${harvested?8:18}" stroke-linecap="round" opacity="${harvested?.55:.9}"/>`).join('')}<path d="M440 195 536 180 566 300 466 316Z" fill="#b7a27c"/><path d="M425 196 488 135 550 177 440 207Z" fill="url(#roof)"/><rect x="482" y="235" width="28" height="67" fill="#493421"/><path d="M250 250 332 237 356 325 270 340Z" fill="#9d8868"/><path d="M236 251 285 207 338 237 251 262Z" fill="url(#roof)"/>${snow?'<path d="M70 190 570 115 655 354 145 432Z" fill="#eef2ef" opacity=".58"/><path d="M425 196 488 135 550 177 440 207Z" fill="#fff" opacity=".8"/>':''}${flooded?'<path d="M88 325 Q250 292 410 330 T642 320 L655 354 145 432Z" fill="#5b8fa0" opacity=".62"/><path d="M150 365 Q320 350 580 360" stroke="#b8dce3" stroke-width="6" opacity=".35" fill="none"/>':''}<circle cx="585" cy="225" r="27" fill="#456b35"/><rect x="580" y="230" width="10" height="66" fill="#5a4027"/></svg>`}
+function setFarm(state){farmState=state;farmScene.innerHTML=farmSvg(state);[...farmButtons.children].forEach(b=>b.classList.toggle('active',b.dataset.state===state));farmReadout.textContent=`featureId: sunwell-farm\nrenderBlockId: farm.sunwell.v1\nstateKey: ${state}\nworldPosition: { x: 710, y: 1170 }\nproductionId: food\nfallback: procedural farm if asset unavailable`;}
+farmStates.forEach(s=>{const b=document.createElement('button');b.textContent=s;b.dataset.state=s;b.onclick=()=>setFarm(s);farmButtons.appendChild(b)});setFarm('healthy');
+function stateFromIntegrity(v){if(v<=20)return'breached';if(v<=40)return'critical';if(v<=65)return'damaged';if(v<=85)return'scarred';return'intact'}
+function wallSvg(state){const damage={intact:0,scarred:1,damaged:2,critical:3,breached:4}[state];const hole=damage===4?'<path d="M290 255 Q335 205 386 250 L410 415 265 415Z" fill="#223026"/><g fill="#756956"><rect x="250" y="390" width="55" height="30" transform="rotate(-9 250 390)"/><rect x="365" y="385" width="68" height="32" transform="rotate(8 365 385)"/></g>':'';const cracks=damage?`<g stroke="#302a22" stroke-width="${4+damage*2}" fill="none" opacity=".95"><path d="M352 160 330 205 355 246 320 292"/><path d="M510 205 475 250 500 305"/>${damage>1?'<path d="M195 175 232 228 205 286 247 330"/>':''}${damage>2?'<path d="M430 145 400 198 420 240 392 290 425 338"/>':''}</g>`:'';return `<svg viewBox="0 0 720 520"><ellipse cx="360" cy="430" rx="300" ry="55" fill="#000" opacity=".25"/><g id="wall-main"><path d="M80 160 H640 V420 H80Z" fill="#817969" stroke="#b3a78e" stroke-width="6"/><g stroke="#5a5348" stroke-width="3" opacity=".45">${[205,255,305,355].map(y=>`<path d="M82 ${y}H638"/>`).join('')}${[150,240,330,420,510,600].map(x=>`<path d="M${x} 162V418"/>`).join('')}</g>${cracks}${hole}</g><g id="battlement">${[90,170,250,330,410,490,570].map((x,i)=>`<rect x="${x}" y="112" width="55" height="62" fill="${damage>2&&i===3?'#5f574b':'#8d8575'}" stroke="#b3a78e" stroke-width="5"/>`).join('')}</g><path d="M78 420 H642" stroke="#4a4338" stroke-width="12"/></svg>`}
+function updateWall(){const value=Number(integrity.value);const state=stateFromIntegrity(value);integrityValue.textContent=`${value}% ${state}`;wallScene.innerHTML=wallSvg(state);const passable=state==='breached';wallReadout.textContent=`nodeId: northwell:west_wall_04\nintegrity: ${(value/100).toFixed(2)}\nvisualState: ${state}\npassability: ${passable?'OPEN / simulation-authorized':'BLOCKED'}\nsemanticRegions: west-wall-main, west-wall-battlement\nrouteChange: ${passable?'true':'false'}`;wallScene.querySelector('svg').addEventListener('click',e=>{const r=e.currentTarget.getBoundingClientRect();const nx=(e.clientX-r.left)/r.width,ny=(e.clientY-r.top)/r.height;const battlement=ny>.20&&ny<.36;const main=ny>.30&&ny<.82;wallSemantic.textContent=battlement?'target → northwell:west_wall_04:battlement':main?'target → northwell:west_wall_04':'outside semantic damage region';wallSemantic.classList.add('show')})}
+integrity.addEventListener('input',updateWall);updateWall();
+</script>
+</body>
+</html>
