@@ -13,6 +13,7 @@ import {
 import { ArmyState, BiomeType, Camera, MapFeature, Position, SimulationState, Territory, WeatherState } from '../types';
 import type { Convoy } from '../types/physicalEconomy';
 import { SimplexNoise } from '../utils/noise';
+import { DestructibleCastle } from './DestructibleCastle';
 
 /** Three.js 3D isometric renderer for the Empire Quest strategic map. */
 export const MAP_WIDTH = 2000;
@@ -244,6 +245,9 @@ export class ThreeMapRenderer {
   // Weather particle system
   private weatherPoints: THREE.Points | null = null;
 
+  // Destructible castle demo (at Stoneforge location)
+  private destructibleCastle: DestructibleCastle | null = null;
+
   constructor(canvas: HTMLCanvasElement, options: MapRendererOptions = {}) {
     this.canvas = canvas;
     this.options = options;
@@ -315,6 +319,9 @@ export class ThreeMapRenderer {
     this.buildRivers();
     this.buildRoads();
     this.buildVegetation();
+
+    // Build destructible castle demo at Stoneforge location
+    this.buildDestructibleCastle();
 
     // Events
     this.bindEvents();
@@ -1753,7 +1760,51 @@ export class ThreeMapRenderer {
     sprite.position.set(feature.position.x, 25, feature.position.y);
     sprite.scale.set(20, 5, 1);
     this.featureGroup.add(sprite);
-  }// --- Armies ---
+  }
+
+  // --- Destructible Castle Demo ---
+  // Builds a destructible castle at Stoneforge and handles click-to-siege.
+  private buildDestructibleCastle(): void {
+    const stoneforge = this.baseFeatures.find(f => f.id === 'stoneforge');
+    if (!stoneforge) return;
+
+    const cx = stoneforge.position.x;
+    const cy = stoneforge.position.y;
+    const h = elevationToHeight(this.elevationAt(stoneforge.position));
+
+    this.destructibleCastle = new DestructibleCastle({ seed: 7 });
+    this.destructibleCastle.group.position.set(cx, Math.max(h, 0), cy);
+    this.buildingGroup.add(this.destructibleCastle.group);
+
+    // Add interactive hint label
+    const hintCanvas = document.createElement('canvas');
+    hintCanvas.width = 256;
+    hintCanvas.height = 48;
+    const hctx = hintCanvas.getContext('2d')!;
+    hctx.fillStyle = 'rgba(10, 14, 13, 0.7)';
+    hctx.beginPath();
+    hctx.roundRect(4, 4, 248, 40, 6);
+    hctx.fill();
+    hctx.fillStyle = '#f0dfad';
+    hctx.font = 'bold 18px Georgia, serif';
+    hctx.textAlign = 'center';
+    hctx.textBaseline = 'middle';
+    hctx.fillText('CLICK WALL TO SIEGE', 128, 22);
+    const hintTex = new THREE.CanvasTexture(hintCanvas);
+    hintTex.minFilter = THREE.LinearFilter;
+    const hintMat = new THREE.SpriteMaterial({ map: hintTex, transparent: true, depthWrite: false });
+    const hint = new THREE.Sprite(hintMat);
+    hint.position.set(cx, h + 22, cy);
+    hint.scale.set(18, 3.4, 1);
+    this.featureGroup.add(hint);
+  }
+
+  private applySiegeImpact(worldPos: THREE.Vector3): void {
+    if (!this.destructibleCastle) return;
+    this.destructibleCastle.applyImpact(worldPos, 5, 1.5);
+  }
+
+  // --- Armies ---
 
   private updateArmies(): void {
     // Clear existing army meshes
@@ -2295,7 +2346,14 @@ export class ThreeMapRenderer {
 
       const intersects = this.raycaster.intersectObjects(this.buildingGroup.children, true);
       if (intersects.length > 0) {
-        let obj = intersects[0].object;
+        const hit = intersects[0];
+        // Check if we hit the destructible castle blocks
+        if (this.destructibleCastle && hit.object.userData.isBlock) {
+          const worldHit = hit.point;
+          this.applySiegeImpact(worldHit);
+          return;
+        }
+        let obj = hit.object;
         while (obj && !obj.userData.featureId) {
           obj = obj.parent as THREE.Object3D;
         }
@@ -2503,6 +2561,9 @@ export class ThreeMapRenderer {
     this.updateWeatherParticles(time);
     this.animateFlags(time);
     this.animateWater(time);
+    if (this.destructibleCastle) {
+      this.destructibleCastle.update(delta / 1000);
+    }
 
     // Render 3D scene (with post-processing pipeline)
     if (this.composer) {
