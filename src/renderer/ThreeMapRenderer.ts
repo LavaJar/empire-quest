@@ -4,6 +4,12 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import {
+  createStoneMasonryTexture, createTowerStoneTexture, createRoofTileTexture,
+  createWoodTexture, createGrassTexture, createCobblestoneTexture,
+  createRockTexture, createSandTexture, createWaterTexture, createCopperDomeTexture,
+  createGroundDetailTexture,
+} from './textures';
 import { ArmyState, BiomeType, Camera, MapFeature, Position, SimulationState, Territory, WeatherState } from '../types';
 import type { Convoy } from '../types/physicalEconomy';
 import { SimplexNoise } from '../utils/noise';
@@ -198,6 +204,40 @@ export class ThreeMapRenderer {
   private skyDome: THREE.Mesh | null = null;
   private skyUniforms: { top: { value: THREE.Color }; bottom: { value: THREE.Color }; offset: { value: number }; exponent: { value: number } } | null = null;
 
+  // Procedural texture cache (created lazily, shared across all buildings)
+  private texCache: {
+    stone: THREE.CanvasTexture;
+    towerStone: THREE.CanvasTexture;
+    roof: THREE.CanvasTexture;
+    roofAlt: THREE.CanvasTexture;
+    wood: THREE.CanvasTexture;
+    cobble: THREE.CanvasTexture;
+    rock: THREE.CanvasTexture;
+    sand: THREE.CanvasTexture;
+    water: THREE.CanvasTexture;
+    copper: THREE.CanvasTexture;
+    groundDetail: THREE.CanvasTexture;
+  } | null = null;
+
+  private textures(): NonNullable<typeof this.texCache> {
+    if (!this.texCache) {
+      this.texCache = {
+        stone: createStoneMasonryTexture(7),
+        towerStone: createTowerStoneTexture(11),
+        roof: createRoofTileTexture('#a05a38', 21),
+        roofAlt: createRoofTileTexture('#7a4a30', 25),
+        wood: createWoodTexture('#6a4a2a', 31),
+        cobble: createCobblestoneTexture(51),
+        rock: createRockTexture(61),
+        sand: createSandTexture(71),
+        water: createWaterTexture(81),
+        copper: createCopperDomeTexture(91),
+        groundDetail: createGroundDetailTexture(101),
+      };
+    }
+    return this.texCache;
+  }
+
   // Water mesh
   private waterMesh: THREE.Mesh | null = null;
 
@@ -274,6 +314,7 @@ export class ThreeMapRenderer {
     this.buildFeatures();
     this.buildRivers();
     this.buildRoads();
+    this.buildVegetation();
 
     // Events
     this.bindEvents();
@@ -513,13 +554,21 @@ export class ThreeMapRenderer {
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geometry.computeVertexNormals();
 
+    // Translate plane from origin-centered (-1000..1000) into map space (0..2000)
+    // so terrain aligns with buildings, water, rivers, and the camera.
+    geometry.translate(MAP_WIDTH / 2, 0, MAP_HEIGHT / 2);
+
     // Add slight displacement for mountains
     this.displaceMountainVertices(geometry);
 
+    const tex = this.textures();
     const material = new THREE.MeshStandardMaterial({
       vertexColors: true,
-      roughness: 0.85,
-      metalness: 0.05,
+      map: tex.groundDetail,
+      bumpMap: tex.groundDetail,
+      bumpScale: 0.6,
+      roughness: 0.92,
+      metalness: 0.02,
       flatShading: false,
     });
 
@@ -558,6 +607,8 @@ export class ThreeMapRenderer {
     }
 
     geometry.computeVertexNormals();
+    // Translate into map space to match the main terrain mesh
+    geometry.translate(MAP_WIDTH / 2, 0, MAP_HEIGHT / 2);
 
     const material = new THREE.MeshStandardMaterial({
       color: 0xffffff,
@@ -579,8 +630,9 @@ export class ThreeMapRenderer {
     const rows = this.terrain.length;
 
     for (let i = 0; i < positions.length; i += 3) {
-      const wx = positions[i] + MAP_WIDTH / 2;
-      const wz = positions[i + 2] + MAP_HEIGHT / 2;
+      // Positions are already in map space (0..2000) after the translate
+      const wx = positions[i];
+      const wz = positions[i + 2];
       const tileX = this.clamp(Math.floor(wx / TERRAIN_TILE_SIZE), 0, cols - 1);
       const tileZ = this.clamp(Math.floor(wz / TERRAIN_TILE_SIZE), 0, rows - 1);
       const tile = this.terrain[tileZ]?.[tileX];
@@ -604,12 +656,16 @@ export class ThreeMapRenderer {
     const waterGeometry = new THREE.PlaneGeometry(MAP_WIDTH * 1.5, MAP_HEIGHT * 1.5);
     waterGeometry.rotateX(-Math.PI / 2);
 
+    const tex = this.textures();
     const waterMaterial = new THREE.MeshStandardMaterial({
-      color: 0x1a5070,
+      color: 0x8ec8d8,
+      map: tex.water,
+      bumpMap: tex.water,
+      bumpScale: 0.4,
       transparent: true,
-      opacity: 0.75,
-      roughness: 0.1,
-      metalness: 0.3,
+      opacity: 0.78,
+      roughness: 0.08,
+      metalness: 0.35,
       depthWrite: false,
     });
 
@@ -626,10 +682,14 @@ export class ThreeMapRenderer {
     const lakeGeo = new THREE.CircleGeometry(Math.max(rx, ry), 32);
     lakeGeo.rotateX(-Math.PI / 2);
 
+    const tex = this.textures();
     const lakeMat = new THREE.MeshStandardMaterial({
-      color: 0x2a7090,
+      color: 0x9ad0e0,
+      map: tex.water,
+      bumpMap: tex.water,
+      bumpScale: 0.3,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.82,
       roughness: 0.05,
       metalness: 0.4,
     });
@@ -650,9 +710,9 @@ export class ThreeMapRenderer {
       const pts = t.polygon;
       if (pts.length < 3) continue;
 
-      shape.moveTo(pts[0].x - MAP_WIDTH / 2, -(pts[0].y - MAP_HEIGHT / 2));
+      shape.moveTo(pts[0].x, -pts[0].y);
       for (let i = 1; i < pts.length; i++) {
-        shape.lineTo(pts[i].x - MAP_WIDTH / 2, -(pts[i].y - MAP_HEIGHT / 2));
+        shape.lineTo(pts[i].x, -pts[i].y);
       }
       shape.closePath();
 
@@ -865,23 +925,30 @@ export class ThreeMapRenderer {
   /** Build a detailed 3D castle with walls, towers, keep, gate, and banners */
   private buildCastle(group: THREE.Group, feature: MapFeature, color: THREE.Color): void {
     const scale = 1 + (feature.level - 1) * 0.15;
+    const tex = this.textures();
     const stoneMat = new THREE.MeshStandardMaterial({
-      color: 0x6a6258,
-      roughness: 0.9,
-      metalness: 0.05,
+      map: tex.stone,
+      bumpMap: tex.stone,
+      bumpScale: 0.3,
+      color: 0xcfc8bc,
+      roughness: 0.92,
+      metalness: 0.02,
     });
     const stoneLightMat = new THREE.MeshStandardMaterial({
-      color: 0x8a8070,
-      roughness: 0.85,
-      metalness: 0.05,
+      map: tex.stone,
+      color: 0xe8e0d0,
+      roughness: 0.88,
+      metalness: 0.02,
     });
     const roofMat = new THREE.MeshStandardMaterial({
-      color: color.clone().multiplyScalar(0.8),
-      roughness: 0.7,
-      metalness: 0.1,
+      map: tex.roof,
+      color: color.clone().multiplyScalar(0.85),
+      roughness: 0.75,
+      metalness: 0.08,
     });
     const darkMat = new THREE.MeshStandardMaterial({
-      color: 0x2a2015,
+      map: tex.wood,
+      color: 0x8a7a68,
       roughness: 0.95,
       metalness: 0,
     });
@@ -1002,7 +1069,8 @@ export class ThreeMapRenderer {
     const pathGeo = new THREE.PlaneGeometry(4 * scale, 10 * scale);
     pathGeo.rotateX(-Math.PI / 2);
     const pathMat = new THREE.MeshStandardMaterial({
-      color: 0x645a4b,
+      map: this.textures().cobble,
+      color: 0xb0a898,
       roughness: 0.95,
       metalness: 0,
     });
@@ -1047,10 +1115,14 @@ export class ThreeMapRenderer {
   /** Build a 3D city with walls, buildings, and towers */
   private buildCity(group: THREE.Group, feature: MapFeature, color: THREE.Color): void {
     const scale = 1 + (feature.level - 1) * 0.15;
+    const tex = this.textures();
     const stoneMat = new THREE.MeshStandardMaterial({
-      color: 0x6a6258,
-      roughness: 0.9,
-      metalness: 0.05,
+      map: tex.stone,
+      bumpMap: tex.stone,
+      bumpScale: 0.25,
+      color: 0xcfc8bc,
+      roughness: 0.92,
+      metalness: 0.02,
     });
 
     // City walls (larger than castle)
@@ -1084,9 +1156,10 @@ export class ThreeMapRenderer {
     ];
 
     const roofMat = new THREE.MeshStandardMaterial({
-      color: color.clone().multiplyScalar(0.8),
-      roughness: 0.7,
-      metalness: 0.1,
+      map: tex.roofAlt,
+      color: color.clone().multiplyScalar(0.85),
+      roughness: 0.75,
+      metalness: 0.08,
     });
 
     for (const tp of towerPositions) {
@@ -1098,9 +1171,10 @@ export class ThreeMapRenderer {
     const keepH = 10 * scale;
     const keepGeo = new THREE.BoxGeometry(keepW, keepH, keepW);
     const keepMat = new THREE.MeshStandardMaterial({
-      color: 0x7a7060,
-      roughness: 0.85,
-      metalness: 0.05,
+      map: tex.stone,
+      color: 0xd8d0c0,
+      roughness: 0.88,
+      metalness: 0.02,
     });
     const keep = new THREE.Mesh(keepGeo, keepMat);
     keep.position.set(0, keepH / 2, 0);
@@ -1118,12 +1192,14 @@ export class ThreeMapRenderer {
 
     // Inner buildings (houses)
     const houseMat = new THREE.MeshStandardMaterial({
-      color: 0x5a4a38,
+      map: tex.wood,
+      color: 0xc8b8a0,
       roughness: 0.9,
       metalness: 0,
     });
     const houseRoofMat = new THREE.MeshStandardMaterial({
-      color: 0x8a6a40,
+      map: tex.roof,
+      color: 0xb08858,
       roughness: 0.8,
       metalness: 0,
     });
@@ -1156,13 +1232,16 @@ export class ThreeMapRenderer {
 
   /** Build a 3D village with small houses */
   private buildVillage(group: THREE.Group, color: THREE.Color): void {
+    const tex = this.textures();
     const houseMat = new THREE.MeshStandardMaterial({
-      color: 0x5a3a20,
+      map: tex.wood,
+      color: 0xd0b890,
       roughness: 0.9,
       metalness: 0,
     });
     const roofMat = new THREE.MeshStandardMaterial({
-      color: 0xa06030,
+      map: tex.roof,
+      color: 0xc08850,
       roughness: 0.8,
       metalness: 0,
     });
@@ -1200,13 +1279,16 @@ export class ThreeMapRenderer {
 
   /** Build a 3D port with dock, ship, and lighthouse */
   private buildPort(group: THREE.Group, color: THREE.Color): void {
+    const tex = this.textures();
     const woodMat = new THREE.MeshStandardMaterial({
-      color: 0x8a6a3a,
+      map: tex.wood,
+      color: 0xc8a878,
       roughness: 0.85,
       metalness: 0,
     });
     const darkWoodMat = new THREE.MeshStandardMaterial({
-      color: 0x5a4020,
+      map: tex.wood,
+      color: 0x907048,
       roughness: 0.9,
       metalness: 0,
     });
@@ -1285,8 +1367,12 @@ export class ThreeMapRenderer {
 
   /** Build a 3D mine entrance */
   private buildMine(group: THREE.Group): void {
+    const tex = this.textures();
     const rockMat = new THREE.MeshStandardMaterial({
-      color: 0x3a3530,
+      map: tex.rock,
+      bumpMap: tex.rock,
+      bumpScale: 0.5,
+      color: 0x9a948c,
       roughness: 0.95,
       metalness: 0,
     });
@@ -1328,19 +1414,26 @@ export class ThreeMapRenderer {
     const lampGeo = new THREE.SphereGeometry(0.5, 8, 8);
     const lampMat = new THREE.MeshStandardMaterial({
       color: 0xffa028,
-      emissive: 0xffa028,
-      emissiveIntensity: 0.5,
+      emissive: 0xff9020,
+      emissiveIntensity: 2.2,
     });
     const lamp = new THREE.Mesh(lampGeo, lampMat);
     lamp.position.set(0, 3, 5.5);
     group.add(lamp);
+
+    // Warm point light from the lamp (catches nearby stone)
+    const lampLight = new THREE.PointLight(0xff9030, 8, 18, 2);
+    lampLight.position.set(0, 3.5, 6);
+    group.add(lampLight);
   }
 
   /** Build a 3D farm with fields */
   private buildFarm(group: THREE.Group): void {
+    const tex = this.textures();
     // Plowed fields
     const fieldMat = new THREE.MeshStandardMaterial({
-      color: 0xa09050,
+      map: tex.groundDetail,
+      color: 0xb8a060,
       roughness: 0.95,
       metalness: 0,
     });
@@ -1372,8 +1465,12 @@ export class ThreeMapRenderer {
 
   /** Build a 3D bridge */
   private buildBridge(group: THREE.Group): void {
+    const tex = this.textures();
     const stoneMat = new THREE.MeshStandardMaterial({
-      color: 0x7a7060,
+      map: tex.stone,
+      bumpMap: tex.stone,
+      bumpScale: 0.3,
+      color: 0xc8c0b0,
       roughness: 0.9,
       metalness: 0.05,
     });
@@ -1442,6 +1539,162 @@ export class ThreeMapRenderer {
         group.add(foliage);
       }
     }
+  }
+
+  // --- Instanced vegetation: thousands of trees & shrubs across the map ---
+
+  private buildVegetation(): void {
+    const tex = this.textures();
+
+    // Keep vegetation away from feature sites
+    const blocked = this.baseFeatures.map(f => ({ x: f.position.x, y: f.position.y, r: 40 }));
+    const isBlocked = (x: number, y: number): boolean => {
+      for (const b of blocked) {
+        const dx = x - b.x, dy = y - b.y;
+        if (dx * dx + dy * dy < b.r * b.r) return true;
+      }
+      return false;
+    };
+
+    // --- Pine trees (conifers) ---
+    const PINE_COUNT = 2600;
+    const pineTrunkGeo = new THREE.CylinderGeometry(0.25, 0.45, 3.2, 5);
+    pineTrunkGeo.translate(0, 1.6, 0);
+    const pineFoliageGeo = new THREE.ConeGeometry(2.2, 6.5, 7);
+    pineFoliageGeo.translate(0, 5.5, 0);
+    const trunkMat = new THREE.MeshStandardMaterial({ map: tex.wood, color: 0x8a6a48, roughness: 0.95 });
+    const pineMat = new THREE.MeshStandardMaterial({ color: 0x2a5230, roughness: 0.9 });
+
+    const pineTrunks = new THREE.InstancedMesh(pineTrunkGeo, trunkMat, PINE_COUNT);
+    const pineFoliage = new THREE.InstancedMesh(pineFoliageGeo, pineMat, PINE_COUNT);
+    const dummy = new THREE.Object3D();
+    const color = new THREE.Color();
+    let placed = 0, attempts = 0;
+
+    while (placed < PINE_COUNT && attempts < PINE_COUNT * 8) {
+      attempts++;
+      const x = Math.random() * MAP_WIDTH;
+      const y = Math.random() * MAP_HEIGHT;
+      const tile = this.terrainAt(x, y);
+      if (!tile) continue;
+      // Pines in forest, dense forest, mountain passes, and some grassland
+      const inForest = tile.biome === 'forest' || tile.biome === 'dense_forest' ||
+        (tile.biome === 'mountain_pass' && Math.random() < 0.5) ||
+        (tile.biome === 'grassland' && Math.random() < 0.12);
+      if (!inForest || isBlocked(x, y)) continue;
+
+      const h = elevationToHeight(tile.elevation);
+      if (h < 0) continue;
+      const s = 0.7 + Math.random() * 0.9;
+      dummy.position.set(x, h, y);
+      dummy.rotation.y = Math.random() * Math.PI * 2;
+      dummy.scale.set(s, s * (0.9 + Math.random() * 0.3), s);
+      dummy.updateMatrix();
+      pineTrunks.setMatrixAt(placed, dummy.matrix);
+      pineFoliage.setMatrixAt(placed, dummy.matrix);
+
+      // Per-instance color variation (green range)
+      color.setHSL(0.33 + Math.random() * 0.05, 0.45 + Math.random() * 0.2, 0.22 + Math.random() * 0.12);
+      pineFoliage.setColorAt(placed, color);
+      placed++;
+    }
+    pineTrunks.count = placed;
+    pineFoliage.count = placed;
+    pineTrunks.castShadow = true;
+    pineFoliage.castShadow = true;
+    pineTrunks.receiveShadow = true;
+    this.featureGroup.add(pineTrunks);
+    this.featureGroup.add(pineFoliage);
+
+    // --- Round deciduous trees ---
+    const OAK_COUNT = 1400;
+    const oakTrunkGeo = new THREE.CylinderGeometry(0.3, 0.5, 2.6, 5);
+    oakTrunkGeo.translate(0, 1.3, 0);
+    const oakFoliageGeo = new THREE.IcosahedronGeometry(2.4, 1);
+    oakFoliageGeo.translate(0, 4.2, 0);
+    const oakMat = new THREE.MeshStandardMaterial({ color: 0x3a6830, roughness: 0.9, flatShading: true });
+
+    const oakTrunks = new THREE.InstancedMesh(oakTrunkGeo, trunkMat, OAK_COUNT);
+    const oakFoliage = new THREE.InstancedMesh(oakFoliageGeo, oakMat, OAK_COUNT);
+    placed = 0; attempts = 0;
+
+    while (placed < OAK_COUNT && attempts < OAK_COUNT * 8) {
+      attempts++;
+      const x = Math.random() * MAP_WIDTH;
+      const y = Math.random() * MAP_HEIGHT;
+      const tile = this.terrainAt(x, y);
+      if (!tile) continue;
+      const inOak = tile.biome === 'grassland' || tile.biome === 'farmland' || tile.biome === 'forest';
+      if (!inOak || isBlocked(x, y)) continue;
+      const density = tile.biome === 'grassland' ? 0.18 : tile.biome === 'farmland' ? 0.08 : 0.35;
+      if (Math.random() > density) continue;
+
+      const h = elevationToHeight(tile.elevation);
+      if (h < 0) continue;
+      const s = 0.6 + Math.random() * 0.8;
+      dummy.position.set(x, h, y);
+      dummy.rotation.y = Math.random() * Math.PI * 2;
+      dummy.scale.set(s, s * (0.85 + Math.random() * 0.35), s);
+      dummy.updateMatrix();
+      oakTrunks.setMatrixAt(placed, dummy.matrix);
+      oakFoliage.setMatrixAt(placed, dummy.matrix);
+
+      color.setHSL(0.25 + Math.random() * 0.09, 0.5 + Math.random() * 0.2, 0.28 + Math.random() * 0.14);
+      oakFoliage.setColorAt(placed, color);
+      placed++;
+    }
+    oakTrunks.count = placed;
+    oakFoliage.count = placed;
+    oakTrunks.castShadow = true;
+    oakFoliage.castShadow = true;
+    oakFoliage.receiveShadow = true;
+    this.featureGroup.add(oakTrunks);
+    this.featureGroup.add(oakFoliage);
+
+    // --- Shrubs / bushes (low, dense) ---
+    const SHRUB_COUNT = 3200;
+    const shrubGeo = new THREE.IcosahedronGeometry(0.9, 0);
+    shrubGeo.translate(0, 0.5, 0);
+    const shrubMat = new THREE.MeshStandardMaterial({ color: 0x35552a, roughness: 0.95, flatShading: true });
+    const shrubs = new THREE.InstancedMesh(shrubGeo, shrubMat, SHRUB_COUNT);
+    placed = 0; attempts = 0;
+
+    while (placed < SHRUB_COUNT && attempts < SHRUB_COUNT * 6) {
+      attempts++;
+      const x = Math.random() * MAP_WIDTH;
+      const y = Math.random() * MAP_HEIGHT;
+      const tile = this.terrainAt(x, y);
+      if (!tile) continue;
+      const inShrub = tile.biome === 'grassland' || tile.biome === 'farmland' || tile.biome === 'forest' ||
+        tile.biome === 'mountain_pass' || tile.biome === 'coastal';
+      if (!inShrub || isBlocked(x, y)) continue;
+      if (Math.random() > 0.3) continue;
+
+      const h = elevationToHeight(tile.elevation);
+      if (h < 0) continue;
+      const s = 0.5 + Math.random() * 1.1;
+      dummy.position.set(x, h, y);
+      dummy.rotation.y = Math.random() * Math.PI * 2;
+      dummy.scale.set(s, s * (0.6 + Math.random() * 0.5), s);
+      dummy.updateMatrix();
+      shrubs.setMatrixAt(placed, dummy.matrix);
+
+      color.setHSL(0.28 + Math.random() * 0.08, 0.4 + Math.random() * 0.25, 0.2 + Math.random() * 0.12);
+      shrubs.setColorAt(placed, color);
+      placed++;
+    }
+    shrubs.count = placed;
+    shrubs.castShadow = true;
+    shrubs.receiveShadow = true;
+    this.featureGroup.add(shrubs);
+  }
+
+  /** Terrain tile lookup in map coordinates (for vegetation placement) */
+  private terrainAt(x: number, y: number): TerrainTile | null {
+    const tx = Math.floor(x / TERRAIN_TILE_SIZE);
+    const ty = Math.floor(y / TERRAIN_TILE_SIZE);
+    if (tx < 0 || ty < 0 || tx >= this.terrain[0].length || ty >= this.terrain.length) return null;
+    return this.terrain[ty][tx];
   }
 
   /** Build a waving banner flag */
@@ -2284,6 +2537,12 @@ export class ThreeMapRenderer {
   private animateWater(time: number): void {
     if (this.waterMesh) {
       this.waterMesh.position.y = -0.5 + Math.sin(time / 2000) * 0.3;
+      // Slow ripple drift
+      const mat = this.waterMesh.material as THREE.MeshStandardMaterial;
+      if (mat.map) {
+        mat.map.offset.x = (time / 60000) % 1;
+        mat.map.offset.y = (time / 90000) % 1;
+      }
     }
   }
 
