@@ -4,6 +4,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import {
   createStoneMasonryTexture, createTowerStoneTexture, createRoofTileTexture,
   createWoodTexture, createGrassTexture, createCobblestoneTexture,
@@ -1827,6 +1828,110 @@ export class ThreeMapRenderer {
     }
   }
 
+  /** Build a detailed humanoid soldier geometry (body + armor + helmet + shield + weapon + boots) */
+  private createSoldierGeometry(): THREE.BufferGeometry {
+    const group = new THREE.Group();
+
+    // Torso (armored chest)
+    const torsoGeo = new THREE.BoxGeometry(0.9, 1.4, 0.6);
+    torsoGeo.translate(0, 1.5, 0);
+    const torso = new THREE.Mesh(torsoGeo);
+    group.add(torso);
+
+    // Shoulder pads
+    const shoulderGeo = new THREE.BoxGeometry(0.3, 0.3, 0.5);
+    const leftShoulder = new THREE.Mesh(shoulderGeo);
+    leftShoulder.position.set(-0.6, 2.1, 0);
+    group.add(leftShoulder);
+    const rightShoulder = new THREE.Mesh(shoulderGeo);
+    rightShoulder.position.set(0.6, 2.1, 0);
+    group.add(rightShoulder);
+
+    // Belt
+    const beltGeo = new THREE.BoxGeometry(1, 0.2, 0.65);
+    beltGeo.translate(0, 0.9, 0);
+    const belt = new THREE.Mesh(beltGeo);
+    group.add(belt);
+
+    // Skirt/armor plates
+    const skirtGeo = new THREE.BoxGeometry(0.9, 0.6, 0.65);
+    skirtGeo.translate(0, 0.55, 0);
+    const skirt = new THREE.Mesh(skirtGeo);
+    group.add(skirt);
+
+    // Head
+    const headGeo = new THREE.SphereGeometry(0.35, 8, 8);
+    headGeo.translate(0, 2.4, 0);
+    const head = new THREE.Mesh(headGeo);
+    group.add(head);
+
+    // Helmet (metal dome)
+    const helmetGeo = new THREE.SphereGeometry(0.38, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+    helmetGeo.translate(0, 2.5, 0);
+    const helmet = new THREE.Mesh(helmetGeo);
+    group.add(helmet);
+
+    // Helmet crest
+    const crestGeo = new THREE.BoxGeometry(0.1, 0.4, 0.35);
+    crestGeo.translate(0, 2.9, 0);
+    const crest = new THREE.Mesh(crestGeo);
+    group.add(crest);
+
+    // Arms
+    const armGeo = new THREE.CylinderGeometry(0.12, 0.14, 1.2, 6);
+    const leftArm = new THREE.Mesh(armGeo);
+    leftArm.position.set(-0.65, 1.5, 0);
+    group.add(leftArm);
+    const rightArm = new THREE.Mesh(armGeo);
+    rightArm.position.set(0.65, 1.5, 0);
+    group.add(rightArm);
+
+    // Shield (on left arm)
+    const shieldGeo = new THREE.BoxGeometry(0.15, 1.2, 0.7);
+    shieldGeo.translate(-0.85, 1.5, 0.2);
+    const shield = new THREE.Mesh(shieldGeo);
+    group.add(shield);
+
+    // Weapon (sword on right hand)
+    const bladeGeo = new THREE.BoxGeometry(0.1, 1.8, 0.05);
+    bladeGeo.translate(0.85, 2.2, 0.3);
+    const blade = new THREE.Mesh(bladeGeo);
+    group.add(blade);
+    const hiltGeo = new THREE.BoxGeometry(0.4, 0.15, 0.1);
+    hiltGeo.translate(0.85, 1.35, 0.3);
+    const hilt = new THREE.Mesh(hiltGeo);
+    group.add(hilt);
+
+    // Legs
+    const legGeo = new THREE.CylinderGeometry(0.15, 0.13, 0.9, 6);
+    const leftLeg = new THREE.Mesh(legGeo);
+    leftLeg.position.set(-0.25, 0.45, 0);
+    group.add(leftLeg);
+    const rightLeg = new THREE.Mesh(legGeo);
+    rightLeg.position.set(0.25, 0.45, 0);
+    group.add(rightLeg);
+
+    // Boots
+    const bootGeo = new THREE.BoxGeometry(0.25, 0.25, 0.45);
+    const leftBoot = new THREE.Mesh(bootGeo);
+    leftBoot.position.set(-0.25, 0.12, 0.1);
+    group.add(leftBoot);
+    const rightBoot = new THREE.Mesh(bootGeo);
+    rightBoot.position.set(0.25, 0.12, 0.1);
+    group.add(rightBoot);
+
+    // Merge all soldier parts into a single geometry for instancing
+    const geometries: THREE.BufferGeometry[] = [];
+    group.traverse((child) => {
+      if (child instanceof THREE.Mesh && child.geometry) {
+        geometries.push(child.geometry);
+      }
+    });
+
+    const merged = mergeGeometries(geometries);
+    return merged;
+  }
+
   private drawArmy(army: ArmyState): void {
     const group = new THREE.Group();
     const { x, y } = army.position;
@@ -1836,37 +1941,82 @@ export class ThreeMapRenderer {
     const color = KINGDOM_COLORS[army.kingdomId] ?? '#d6b260';
     const colorObj = new THREE.Color(color);
 
-    // Soldiers
+    // Soldiers - instanced humanoids with armor detail and faction variation
     const soldiers = army.composition.reduce((sum, c) => sum + c.count, 0);
-    const formationSize = Math.min(5, Math.max(2, Math.floor(soldiers / 50)));
+    const formationSize = Math.min(8, Math.max(3, Math.floor(soldiers / 30)));
+    const rows = Math.min(3, Math.ceil(formationSize / 6));
 
-    const soldierMat = new THREE.MeshStandardMaterial({
-      color: 0x2a2218,
-      roughness: 0.9,
-      metalness: 0.1,
+    const tex = this.textures();
+
+    // Armor materials with faction colors
+    const armorMat = new THREE.MeshStandardMaterial({
+      map: tex.wood,
+      color: colorObj.clone().multiplyScalar(0.7),
+      roughness: 0.6,
+      metalness: 0.4,
     });
     const helmetMat = new THREE.MeshStandardMaterial({
-      color: 0x6a6050,
+      color: 0x8a8070,
+      roughness: 0.5,
+      metalness: 0.6,
+    });
+    const skinMat = new THREE.MeshStandardMaterial({
+      color: 0xd4a574,
+      roughness: 0.8,
+      metalness: 0,
+    });
+    const weaponMat = new THREE.MeshStandardMaterial({
+      color: 0x9a9080,
+      roughness: 0.4,
+      metalness: 0.7,
+    });
+    const shieldMat = new THREE.MeshStandardMaterial({
+      map: tex.wood,
+      color: colorObj.clone().multiplyScalar(0.6),
       roughness: 0.7,
-      metalness: 0.3,
+      metalness: 0.2,
+    });
+    const bootMat = new THREE.MeshStandardMaterial({
+      color: 0x4a3a28,
+      roughness: 0.9,
+      metalness: 0,
     });
 
-    for (let i = 0; i < formationSize; i++) {
-      const sx = (i - (formationSize - 1) / 2) * 4;
+    // Build instanced soldier meshes
+    const soldierCount = formationSize * rows;
+    const soldierGeo = this.createSoldierGeometry();
+    const soldierMesh = new THREE.InstancedMesh(soldierGeo, armorMat, soldierCount);
+    soldierMesh.castShadow = true;
+    soldierMesh.receiveShadow = true;
 
-      // Body
-      const bodyGeo = new THREE.BoxGeometry(1.5, 3, 1);
-      const body = new THREE.Mesh(bodyGeo, soldierMat);
-      body.position.set(sx, 1.5, 0);
-      body.castShadow = true;
-      group.add(body);
+    const dummy = new THREE.Object3D();
+    const instanceColor = new THREE.Color();
 
-      // Helmet
-      const helmetGeo = new THREE.SphereGeometry(1, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2);
-      const helmet = new THREE.Mesh(helmetGeo, helmetMat);
-      helmet.position.set(sx, 3, 0);
-      group.add(helmet);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < formationSize; c++) {
+        const idx = r * formationSize + c;
+        if (idx >= soldierCount) break;
+
+        const sx = (c - (formationSize - 1) / 2) * 2.2;
+        const sz = r * 2.5;
+
+        dummy.position.set(sx, 0, sz);
+        dummy.rotation.y = Math.PI; // face forward
+        // Slight random variation
+        dummy.rotation.y += (Math.random() - 0.5) * 0.2;
+        const scale = 0.9 + Math.random() * 0.2;
+        dummy.scale.set(scale, scale, scale);
+        dummy.updateMatrix();
+        soldierMesh.setMatrixAt(idx, dummy.matrix);
+
+        // Faction color variation
+        instanceColor.copy(colorObj).multiplyScalar(0.6 + Math.random() * 0.3);
+        soldierMesh.setColorAt(idx, instanceColor);
+      }
     }
+    soldierMesh.instanceMatrix.needsUpdate = true;
+    if (soldierMesh.instanceColor) soldierMesh.instanceColor.needsUpdate = true;
+    group.add(soldierMesh);
 
     // Banner pole
     const poleGeo = new THREE.CylinderGeometry(0.1, 0.1, 14, 6);
@@ -1890,7 +2040,8 @@ export class ThreeMapRenderer {
     // Supply wagons
     if (army.wagons > 0) {
       const wagonMat = new THREE.MeshStandardMaterial({
-        color: 0x5a4020,
+        map: tex.wood,
+        color: 0x8a6a48,
         roughness: 0.9,
       });
 
