@@ -249,6 +249,9 @@ export class ThreeMapRenderer {
   // Destructible castle demo (at Stoneforge location)
   private destructibleCastle: DestructibleCastle | null = null;
 
+  // Shared dust/debris group for impact effects
+  private dustGroup: THREE.Group;
+
   constructor(canvas: HTMLCanvasElement, options: MapRendererOptions = {}) {
     this.canvas = canvas;
     this.options = options;
@@ -288,6 +291,7 @@ export class ThreeMapRenderer {
     this.weatherGroup = new THREE.Group();
     this.territoryGroup = new THREE.Group();
     this.overlayGroup = new THREE.Group();
+    this.dustGroup = new THREE.Group();
 
     this.scene.add(this.terrainGroup);
     this.scene.add(this.waterGroup);
@@ -298,6 +302,7 @@ export class ThreeMapRenderer {
     this.scene.add(this.convoyGroup);
     this.scene.add(this.weatherGroup);
     this.scene.add(this.overlayGroup);
+    this.scene.add(this.dustGroup);
 
     // Lighting
     this.setupLighting();
@@ -323,6 +328,7 @@ export class ThreeMapRenderer {
 
     // Build destructible castle demo at Stoneforge location
     this.buildDestructibleCastle();
+    this.buildTrebuchet();
 
     // Events
     this.bindEvents();
@@ -1805,6 +1811,288 @@ export class ThreeMapRenderer {
     this.destructibleCastle.applyImpact(worldPos, 5, 1.5);
   }
 
+  // --- Siege Equipment ---
+  // Trebuchet that launches projectiles at walls. Click near the castle to fire.
+  private trebuchetGroup: THREE.Group | null = null;
+  private projectiles: Array<{ mesh: THREE.Mesh; vel: THREE.Vector3; life: number }> = [];
+
+  private buildTrebuchet(): void {
+    const stoneforge = this.baseFeatures.find(f => f.id === 'stoneforge');
+    if (!stoneforge) return;
+
+    const cx = stoneforge.position.x - 25;
+    const cy = stoneforge.position.y;
+    const h = elevationToHeight(this.elevationAt(stoneforge.position));
+
+    const tex = this.textures();
+    const woodMat = new THREE.MeshStandardMaterial({
+      map: tex.wood,
+      color: 0x8a6a48,
+      roughness: 0.9,
+      metalness: 0,
+    });
+    const ropeMat = new THREE.MeshStandardMaterial({ color: 0x9a8a68, roughness: 0.95 });
+    const stoneMat = new THREE.MeshStandardMaterial({
+      map: tex.rock,
+      color: 0x8a8478,
+      roughness: 0.95,
+      metalness: 0,
+    });
+
+    this.trebuchetGroup = new THREE.Group();
+    this.trebuchetGroup.position.set(cx, Math.max(h, 0), cy);
+
+    // Base frame (A-frame)
+    const baseGeo = new THREE.BoxGeometry(4, 0.5, 3);
+    const base = new THREE.Mesh(baseGeo, woodMat);
+    base.position.y = 0.25;
+    base.castShadow = true;
+    this.trebuchetGroup.add(base);
+
+    // Support legs
+    for (let side = -1; side <= 1; side += 2) {
+      const legGeo = new THREE.BoxGeometry(0.4, 4, 0.4);
+      const leg = new THREE.Mesh(legGeo, woodMat);
+      leg.position.set(side * 1.5, 2.25, 0);
+      leg.rotation.z = side * 0.15;
+      leg.castShadow = true;
+      this.trebuchetGroup.add(leg);
+    }
+
+    // Axle
+    const axleGeo = new THREE.CylinderGeometry(0.2, 0.2, 4, 8);
+    const axle = new THREE.Mesh(axleGeo, woodMat);
+    axle.rotation.x = Math.PI / 2;
+    axle.position.set(0, 4, 0);
+    this.trebuchetGroup.add(axle);
+
+    // Throwing arm (rotates around axle)
+    const armGeo = new THREE.BoxGeometry(0.3, 0.3, 8);
+    const arm = new THREE.Mesh(armGeo, woodMat);
+    arm.position.set(0, 4, 1.5); // short end has counterweight, long end throws
+    arm.castShadow = true;
+    arm.userData.isArm = true;
+    this.trebuchetGroup.add(arm);
+
+    // Counterweight (short end)
+    const cwGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
+    const cw = new THREE.Mesh(cwGeo, stoneMat);
+    cw.position.set(0, 4, -2);
+    cw.castShadow = true;
+    this.trebuchetGroup.add(cw);
+
+    // Sling pocket (long end)
+    const pocketGeo = new THREE.BoxGeometry(0.6, 0.3, 0.6);
+    const pocket = new THREE.Mesh(pocketGeo, ropeMat);
+    pocket.position.set(0, 4, 5);
+    this.trebuchetGroup.add(pocket);
+
+    // Rope from arm to pocket
+    const ropeGeo = new THREE.CylinderGeometry(0.05, 0.05, 2, 6);
+    const rope = new THREE.Mesh(ropeGeo, ropeMat);
+    rope.position.set(0, 5, 5);
+    this.trebuchetGroup.add(rope);
+
+    // Wheels
+    for (let side = -1; side <= 1; side += 2) {
+      for (let z = -1; z <= 1; z += 2) {
+        const wheelGeo = new THREE.CylinderGeometry(1, 1, 0.3, 12);
+        const wheel = new THREE.Mesh(wheelGeo, woodMat);
+        wheel.rotation.x = Math.PI / 2;
+        wheel.position.set(side * 1.5, 1, z * 1.2);
+        wheel.castShadow = true;
+        this.trebuchetGroup.add(wheel);
+      }
+    }
+
+    // Fire hint label
+    const hintCanvas = document.createElement('canvas');
+    hintCanvas.width = 256;
+    hintCanvas.height = 48;
+    const hctx = hintCanvas.getContext('2d')!;
+    hctx.fillStyle = 'rgba(10, 14, 13, 0.7)';
+    hctx.beginPath();
+    hctx.roundRect(4, 4, 248, 40, 6);
+    hctx.fill();
+    hctx.fillStyle = '#f0dfad';
+    hctx.font = 'bold 18px Georgia, serif';
+    hctx.textAlign = 'center';
+    hctx.textBaseline = 'middle';
+    hctx.fillText('CLICK TO FIRE TREBUCHET', 128, 22);
+    const hintTex = new THREE.CanvasTexture(hintCanvas);
+    hintTex.minFilter = THREE.LinearFilter;
+    const hintMat = new THREE.SpriteMaterial({ map: hintTex, transparent: true, depthWrite: false });
+    const hint = new THREE.Sprite(hintMat);
+    hint.position.set(cx, h + 8, cy);
+    hint.scale.set(20, 3.8, 1);
+    this.featureGroup.add(hint);
+
+    this.buildingGroup.add(this.trebuchetGroup);
+  }
+
+  private fireTrebuchet(): void {
+    if (!this.trebuchetGroup || !this.destructibleCastle) return;
+
+    // Animate arm swing
+    const arm = this.trebuchetGroup.children.find(c => c.userData.isArm) as THREE.Mesh | undefined;
+    if (arm) {
+      const startRot = arm.rotation.z;
+      const swing = () => {
+        arm.rotation.z += 0.4;
+        if (arm.rotation.z < Math.PI / 2) {
+          requestAnimationFrame(swing);
+        }
+      };
+      swing();
+    }
+
+    // Launch projectile toward castle center
+    const trebuchetPos = this.trebuchetGroup.position.clone();
+    const castlePos = this.destructibleCastle.group.position.clone();
+    const target = castlePos.clone();
+    target.y = Math.max(target.y, 0) + 6; // aim at wall mid-height
+
+    const dir = new THREE.Vector3().subVectors(target, trebuchetPos).normalize();
+    const speed = 35;
+
+    const stoneGeo = new THREE.SphereGeometry(0.6, 8, 8);
+    const stoneMat = new THREE.MeshStandardMaterial({
+      map: this.textures().rock,
+      color: 0x8a8478,
+      roughness: 0.95,
+      metalness: 0,
+    });
+    const projectile = new THREE.Mesh(stoneGeo, stoneMat);
+    projectile.position.copy(trebuchetPos);
+    projectile.position.y += 5;
+    projectile.castShadow = true;
+    projectile.userData.isProjectile = true;
+    this.buildingGroup.add(projectile);
+
+    // Gravity-based projectile motion
+    const vel = dir.multiplyScalar(speed);
+    vel.y = 12; // arc upward
+    this.projectiles.push({ mesh: projectile, vel, life: 3 });
+  }
+
+  private updateProjectiles(delta: number): void {
+    const gravity = -25;
+    for (let i = this.projectiles.length - 1; i >= 0; i--) {
+      const p = this.projectiles[i];
+      p.life -= delta;
+      p.vel.y += gravity * delta;
+      p.mesh.position.addScaledVector(p.vel, delta);
+
+      // Check collision with castle walls
+      if (this.destructibleCastle) {
+        const castlePos = this.destructibleCastle.group.position;
+        const dist = p.mesh.position.distanceTo(castlePos);
+        if (dist < 18 && p.mesh.position.y < castlePos.y + 14) {
+          // Impact!
+          this.destructibleCastle.applyImpact(p.mesh.position, 6, 2.0);
+          this.spawnImpactEffect(p.mesh.position);
+          this.buildingGroup.remove(p.mesh);
+          p.mesh.geometry.dispose();
+          (p.mesh.material as THREE.Material).dispose();
+          this.projectiles.splice(i, 1);
+          continue;
+        }
+      }
+
+      // Ground hit or timeout
+      if (p.mesh.position.y < 0 || p.life <= 0) {
+        this.buildingGroup.remove(p.mesh);
+        p.mesh.geometry.dispose();
+        (p.mesh.material as THREE.Material).dispose();
+        this.projectiles.splice(i, 1);
+      }
+    }
+  }
+
+  private spawnImpactEffect(pos: THREE.Vector3): void {
+    // Dust cloud
+    const count = 12;
+    for (let i = 0; i < count; i++) {
+      const geo = new THREE.PlaneGeometry(2, 2);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xb0a080,
+        transparent: true,
+        opacity: 0.6,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const dust = new THREE.Mesh(geo, mat);
+      dust.position.copy(pos);
+      dust.position.x += (Math.random() - 0.5) * 4;
+      dust.position.y += Math.random() * 3;
+      dust.position.z += (Math.random() - 0.5) * 4;
+      dust.userData.isDust = true;
+      dust.userData.dustVel = new THREE.Vector3(
+        (Math.random() - 0.5) * 6,
+        3 + Math.random() * 4,
+        (Math.random() - 0.5) * 6
+      );
+      dust.userData.dustLife = 1.5;
+      this.dustGroup.add(dust);
+    }
+
+    // Debris particles
+    for (let i = 0; i < 8; i++) {
+      const geo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+      const mat = new THREE.MeshStandardMaterial({
+        map: this.textures().rock,
+        color: 0x8a8478,
+        roughness: 0.95,
+      });
+      const debris = new THREE.Mesh(geo, mat);
+      debris.position.copy(pos);
+      debris.userData.isDebris = true;
+      debris.userData.debrisVel = new THREE.Vector3(
+        (Math.random() - 0.5) * 10,
+        5 + Math.random() * 8,
+        (Math.random() - 0.5) * 10
+      );
+      debris.userData.debrisLife = 1.2;
+      this.buildingGroup.add(debris);
+    }
+  }
+
+  private updateDebris(delta: number): void {
+    const gravity = -30;
+    for (const group of [this.buildingGroup, this.dustGroup]) {
+      for (let i = group.children.length - 1; i >= 0; i--) {
+        const child = group.children[i] as THREE.Mesh;
+        if (child.userData.isDebris) {
+          child.userData.debrisLife -= delta;
+          child.userData.debrisVel.y += gravity * delta;
+          child.position.addScaledVector(child.userData.debrisVel, delta);
+          child.rotation.x += delta * 5;
+          child.rotation.z += delta * 3;
+          if (child.position.y < 0) {
+            child.position.y = 0;
+            child.userData.debrisVel.multiplyScalar(0.3);
+          }
+          if (child.userData.debrisLife <= 0) {
+            group.remove(child);
+            child.geometry.dispose();
+            (child.material as THREE.Material).dispose();
+          }
+        } else if (child.userData.isDust) {
+          child.userData.dustLife -= delta;
+          child.position.addScaledVector(child.userData.dustVel, delta);
+          child.userData.dustVel.y -= delta * 2;
+          child.scale.setScalar(1 + (1.5 - child.userData.dustLife) * 2);
+          (child.material as THREE.MeshBasicMaterial).opacity = child.userData.dustLife * 0.4;
+          if (child.userData.dustLife <= 0) {
+            group.remove(child);
+            child.geometry.dispose();
+            (child.material as THREE.Material).dispose();
+          }
+        }
+      }
+    }
+  }
+
   // --- Armies ---
 
   private updateArmies(): void {
@@ -2504,6 +2792,11 @@ export class ThreeMapRenderer {
           this.applySiegeImpact(worldHit);
           return;
         }
+        // Check if we hit the trebuchet — fire it
+        if (this.trebuchetGroup && hit.object.parent === this.trebuchetGroup) {
+          this.fireTrebuchet();
+          return;
+        }
         let obj = hit.object;
         while (obj && !obj.userData.featureId) {
           obj = obj.parent as THREE.Object3D;
@@ -2715,6 +3008,8 @@ export class ThreeMapRenderer {
     if (this.destructibleCastle) {
       this.destructibleCastle.update(delta / 1000);
     }
+    this.updateProjectiles(delta / 1000);
+    this.updateDebris(delta / 1000);
 
     // Render 3D scene (with post-processing pipeline)
     if (this.composer) {
